@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>TrademarkMonitor — USPTO Live Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#090D18;--surface:#0F1523;--card:#131B2E;--card2:#0D1424;
+  --border:#1C2640;--border2:#243050;
+  --accent:#4F8EF7;--accent2:#3B6FD4;--glow:rgba(79,142,247,0.1);
+  --success:#22D3A0;--warn:#F5A623;--danger:#F05D6E;--orange:#F97B3D;
+  --muted:#3A4A66;--text:#DDE4F0;--sub:#7A8BA8;--faint:#4A5A78;
+}
+html,body{height:100%;overflow:hidden;}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);}
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes shimmer{0%{background-position:-600px 0}100%{background-position:600px 0}}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+.fade-up{animation:fadeUp .3s ease forwards}
+.fade-down{animation:fadeDown .3s ease forwards}
+.spinner{width:14px;height:14px;border:2px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;display:inline-block;flex-shrink:0}
+.pulse{animation:pulse 2.5s ease-in-out infinite}
+/* LAYOUT */
+#app{display:flex;flex-direction:column;height:100vh}
+.header{display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:54px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;position:relative;z-index:10}
+.header::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:.25}
+.body-wrap{display:flex;flex:1;overflow:hidden;flex-direction:column}
+.main{display:flex;flex:1;overflow:hidden}
+.sidebar{width:220px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;flex-shrink:0}
+.content{flex:1;overflow-y:auto;padding:22px 26px}
+/* ALERT */
+.alert-banner{display:none;align-items:flex-start;gap:12px;padding:12px 20px;background:#1a1200;border-bottom:1px solid var(--warn);flex-shrink:0}
+.alert-banner.visible{display:flex;animation:fadeDown .3s ease}
+.alert-title{font-family:'Syne',sans-serif;font-weight:700;font-size:13px;color:var(--warn);margin-bottom:3px}
+.alert-items{font-size:12px;color:#c8a84b;line-height:1.7}
+.alert-close{background:none;border:none;color:var(--warn);cursor:pointer;font-size:18px;padding:0 4px;opacity:.7;flex-shrink:0}
+/* HEADER */
+.logo{display:flex;align-items:center;gap:10px}
+.logo-icon{width:30px;height:30px;border-radius:7px;background:linear-gradient(135deg,#4F8EF7,#7C5BF0);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.logo-text{font-family:'Syne',sans-serif;font-weight:800;font-size:15px;letter-spacing:-.03em}
+.logo-text span{color:var(--sub);font-weight:400}
+.live-badge{display:flex;align-items:center;gap:6px;font-family:'DM Mono',monospace;font-size:10px;color:var(--sub);padding:4px 10px;border:1px solid var(--border2);border-radius:20px}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--success)}
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:6px;border:none;border-radius:8px;padding:7px 14px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;cursor:pointer;transition:all .15s;text-decoration:none}
+.btn-primary{background:var(--accent);color:white}
+.btn-primary:hover{background:var(--accent2)}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+.btn-ghost{background:transparent;color:var(--sub);border:1px solid var(--border2)}
+.btn-ghost:hover{color:var(--text);border-color:var(--faint)}
+.btn-danger{background:rgba(240,93,110,0.1);color:var(--danger);border:1px solid rgba(240,93,110,0.25)}
+.btn-danger:hover{background:rgba(240,93,110,0.2)}
+/* SIDEBAR */
+.sidebar-section{padding:14px 0 4px}
+.sidebar-label{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;padding:0 16px;margin-bottom:4px;display:flex;align-items:center;justify-content:space-between}
+.sidebar-label-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;padding:0 2px;line-height:1;transition:color .1s}
+.sidebar-label-btn:hover{color:var(--accent)}
+.nav-item{display:flex;align-items:center;gap:9px;padding:9px 16px;font-size:12px;color:var(--sub);cursor:pointer;border:none;background:none;width:100%;text-align:left;border-left:2px solid transparent;transition:all .12s;font-family:'DM Sans',sans-serif}
+.nav-item:hover{color:var(--text);background:rgba(255,255,255,.025)}
+.nav-item.active{color:var(--accent);background:var(--glow);border-left-color:var(--accent)}
+.nav-item .client-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.nav-item .nav-count{margin-left:auto;font-family:'DM Mono',monospace;font-size:10px;background:var(--border2);padding:1px 6px;border-radius:10px;color:var(--faint)}
+.sidebar-divider{height:1px;background:var(--border);margin:8px 16px}
+/* STATS */
+.stats-row{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:20px}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:11px;padding:15px 17px;position:relative;overflow:hidden;transition:all .2s}
+.stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--accent-line,var(--accent));opacity:.6}
+.stat-card:hover{border-color:var(--border2);transform:translateY(-1px)}
+.stat-label{font-size:10px;color:var(--sub);text-transform:uppercase;letter-spacing:.08em;margin-bottom:7px}
+.stat-value{font-family:'Syne',sans-serif;font-weight:700;font-size:25px;line-height:1;margin-bottom:4px}
+.stat-sub{font-size:10px;color:var(--faint)}
+/* FILTERS */
+.filters{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.search-wrap{position:relative;flex:0 0 260px}
+.search-wrap input{width:100%;background:var(--card);border:1px solid var(--border);color:var(--text);font-family:'DM Mono',monospace;font-size:12px;border-radius:8px;padding:8px 12px 8px 32px;outline:none;transition:border .15s}
+.search-wrap input:focus{border-color:var(--accent)}
+.search-wrap input::placeholder{color:var(--muted)}
+.search-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:13px;color:var(--muted);pointer-events:none}
+.filter-pills{display:flex;gap:5px;flex-wrap:wrap}
+.pill{padding:5px 12px;border-radius:20px;font-size:11px;font-weight:500;cursor:pointer;border:none;transition:all .12s;font-family:'DM Sans',sans-serif;background:var(--card);color:var(--sub)}
+.pill:hover{color:var(--text)}
+.pill.active{color:white}
+/* TABLE */
+.table-header{display:grid;grid-template-columns:2.2fr 1.4fr 130px 100px 80px 24px;gap:10px;padding:8px 14px 8px 20px;font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.09em;border-bottom:1px solid var(--border);margin-bottom:2px}
+.tm-row{display:grid;grid-template-columns:2.2fr 1.4fr 130px 100px 80px 24px;gap:10px;align-items:center;padding:11px 14px 11px 17px;border-radius:8px;cursor:pointer;border-left:3px solid var(--row-color,var(--muted));transition:all .15s;border-bottom:1px solid rgba(28,38,64,.4);margin-bottom:2px}
+.tm-row:hover{background:rgba(255,255,255,.025)}
+.tm-row.selected{background:var(--glow)}
+.tm-row.changed{background:rgba(245,166,35,.05);border-left-color:var(--warn)!important}
+.mark-name{font-family:'Syne',sans-serif;font-weight:600;font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mark-sn{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-top:2px}
+.owner-name{font-size:11px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:10.5px;font-weight:600;white-space:nowrap}
+.renewal{font-size:11px;font-family:'DM Mono',monospace}
+.renewal.urgent{color:var(--warn)}
+.renewal.ok{color:var(--faint)}
+.note-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);opacity:.7;flex-shrink:0}
+/* DETAIL PANEL */
+.detail-panel{width:340px;flex-shrink:0;background:var(--card);border:1px solid var(--border);border-radius:13px;padding:20px;overflow-y:auto;max-height:calc(100vh - 180px);animation:slideIn .25s ease}
+.detail-close{background:none;border:none;color:var(--muted);cursor:pointer;font-size:17px;padding:2px 6px;line-height:1;border-radius:5px;transition:color .1s}
+.detail-close:hover{color:var(--text)}
+.detail-mark{font-family:'Syne',sans-serif;font-weight:800;font-size:19px;color:var(--text);line-height:1.1}
+.detail-sn{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin-top:3px}
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0}
+.info-cell{background:var(--surface);border-radius:7px;padding:9px 11px}
+.info-key{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px}
+.info-val{font-size:11.5px;color:var(--text);font-weight:500;line-height:1.3}
+.gs-box{background:var(--surface);border-radius:8px;padding:11px;font-size:11.5px;color:var(--sub);line-height:1.6}
+.section-label{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.09em;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between}
+.tl-item{display:flex;gap:10px;margin-bottom:12px}
+.tl-line{display:flex;flex-direction:column;align-items:center}
+.tl-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:3px}
+.tl-connector{width:1px;flex:1;background:var(--border);margin-top:3px}
+.tl-event{font-size:11.5px;color:var(--text);font-weight:500}
+.tl-date{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-top:2px}
+.detail-actions{display:flex;gap:7px;margin-top:16px;padding-top:14px;border-top:1px solid var(--border);flex-wrap:wrap}
+/* NOTES */
+.notes-area{width:100%;background:var(--surface);border:1px solid var(--border);color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;border-radius:8px;padding:10px 12px;outline:none;resize:vertical;min-height:80px;line-height:1.6;transition:border .15s}
+.notes-area:focus{border-color:var(--accent)}
+.notes-area::placeholder{color:var(--muted)}
+.notes-saved{font-size:10px;color:var(--success);margin-top:4px;display:none}
+/* MODALS */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:200}
+.modal{background:var(--card);border:1px solid var(--border2);border-radius:15px;padding:26px;width:440px;animation:fadeUp .25s ease;max-height:90vh;overflow-y:auto}
+.modal h2{font-family:'Syne',sans-serif;font-weight:700;font-size:17px;margin-bottom:6px}
+.modal-sub{font-size:12px;color:var(--sub);margin-bottom:20px;line-height:1.5}
+.form-group{margin-bottom:14px}
+.form-label{font-size:10px;color:var(--sub);text-transform:uppercase;letter-spacing:.09em;margin-bottom:6px;display:block}
+.form-input{width:100%;background:var(--surface);border:1px solid var(--border);color:var(--text);font-family:'DM Mono',monospace;font-size:13px;border-radius:8px;padding:9px 13px;outline:none;transition:border .15s}
+.form-input:focus{border-color:var(--accent)}
+.form-input::placeholder{color:var(--muted)}
+.form-select{width:100%;background:var(--surface);border:1px solid var(--border);color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;border-radius:8px;padding:9px 13px;outline:none;cursor:pointer}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:20px}
+.hint{font-size:11px;color:var(--muted);margin-top:12px;line-height:1.6;background:var(--surface);border-radius:8px;padding:10px 12px}
+.error-msg{font-size:12px;color:var(--danger);margin-bottom:10px;padding:8px 12px;background:rgba(240,93,110,.1);border-radius:6px;border:1px solid rgba(240,93,110,.2)}
+/* CLIENT MANAGER */
+.client-row{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface);border-radius:8px;margin-bottom:8px}
+.client-color-swatch{width:24px;height:24px;border-radius:6px;cursor:pointer;border:2px solid transparent;flex-shrink:0;transition:border .1s}
+.client-color-swatch:hover{border-color:var(--border2)}
+.client-name-input{flex:1;background:transparent;border:none;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;padding:2px 4px;border-radius:4px;transition:background .1s}
+.client-name-input:focus{background:var(--card);padding:4px 8px}
+.client-tm-count{font-family:'DM Mono',monospace;font-size:10px;color:var(--faint);white-space:nowrap}
+/* KEY SCREEN */
+.key-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:40px;text-align:center}
+.key-form{width:100%;max-width:440px;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:24px}
+.key-input-wrap{position:relative}
+.key-input-wrap input{padding-right:44px}
+.key-toggle{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--sub);cursor:pointer;font-size:14px;padding:4px}
+.key-features{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:20px;text-align:left}
+.key-feature{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--sub)}
+/* AI */
+.ai-panel{max-width:760px}
+.ai-title{font-family:'Syne',sans-serif;font-weight:800;font-size:22px;margin-bottom:6px}
+.ai-sub{font-size:13px;color:var(--sub);margin-bottom:24px}
+.ai-box{background:var(--card);border:1px solid rgba(79,142,247,.3);border-radius:14px;padding:22px}
+.ai-input-row{display:flex;gap:8px;margin-bottom:14px}
+.ai-input{flex:1;background:var(--surface);border:1px solid var(--border);color:var(--text);font-family:'DM Mono',monospace;font-size:12px;border-radius:8px;padding:9px 13px;outline:none;transition:border .15s}
+.ai-input:focus{border-color:var(--accent)}
+.ai-input::placeholder{color:var(--muted)}
+.ai-response{background:var(--surface);border-radius:10px;padding:14px 16px;font-size:13px;color:var(--sub);line-height:1.8;white-space:pre-wrap;animation:fadeUp .25s ease}
+.ai-chips{display:flex;gap:7px;flex-wrap:wrap}
+.ai-chip{background:var(--surface);border:1px solid var(--border);color:var(--sub);padding:5px 11px;border-radius:7px;font-size:11px;cursor:pointer;transition:all .12s;font-family:'DM Sans',sans-serif}
+.ai-chip:hover{color:var(--text);border-color:var(--border2)}
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;color:var(--muted);gap:10px}
+/* COLOR PICKER SWATCHES */
+.color-swatches{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.color-swatch{width:22px;height:22px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:border .1s;flex-shrink:0}
+.color-swatch:hover,.color-swatch.selected{border-color:white}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const CORS_PROXY="https://corsproxy.io/?url=";
+const TSDR_BASE='https://tsdrapi.uspto.gov/ts/cd';
+const CLIENT_COLORS=['#4F8EF7','#9B7CF8','#22D3A0','#F97B3D','#F05D6E','#F5A623','#06B6D4','#84CC16','#EC4899','#8B5CF6'];
+const STATUS_MAP={
+  '710':{code:'registered',label:'Registered',color:'#22D3A0',bg:'rgba(34,211,160,0.1)',border:'rgba(34,211,160,0.25)',icon:'&#10003;'},
+  '400':{code:'registered',label:'Registered',color:'#22D3A0',bg:'rgba(34,211,160,0.1)',border:'rgba(34,211,160,0.25)',icon:'&#10003;'},
+  '720':{code:'abandoned',label:'Abandoned',color:'#F05D6E',bg:'rgba(240,93,110,0.1)',border:'rgba(240,93,110,0.25)',icon:'&#10005;'},
+  '730':{code:'cancelled',label:'Cancelled',color:'#F05D6E',bg:'rgba(240,93,110,0.1)',border:'rgba(240,93,110,0.25)',icon:'&#10005;'},
+  '680':{code:'published',label:'Published',color:'#F5A623',bg:'rgba(245,166,35,0.1)',border:'rgba(245,166,35,0.25)',icon:'&#9672;'},
+  '660':{code:'action',label:'Office Action',color:'#F97B3D',bg:'rgba(249,123,61,0.1)',border:'rgba(249,123,61,0.25)',icon:'&#9888;'},
+  '640':{code:'pending',label:'Pending',color:'#4F8EF7',bg:'rgba(79,142,247,0.1)',border:'rgba(79,142,247,0.25)',icon:'&#9673;'},
+  '650':{code:'pending',label:'Pending',color:'#4F8EF7',bg:'rgba(79,142,247,0.1)',border:'rgba(79,142,247,0.25)',icon:'&#9673;'},
+};
+const DEF_CFG={code:'unknown',label:'Unknown',color:'#4A5A78',bg:'rgba(74,90,120,0.1)',border:'rgba(74,90,120,0.2)',icon:'?'};
+
+let S={
+  apiKey:'yfskultskdytmbjkkttpxxqpptrchu',apiConnected:true,showKeyScreen:false,keyVisible:false,
+  trademarks:{},  // sn -> tm object
+  notes:{},       // sn -> string (private notes per trademark)
+  statusSnapshot:{}, changes:[],
+  clients:[
+    {id:1,name:'Client 1',color:'#4F8EF7',sns:[]},
+    {id:2,name:'Client 2',color:'#9B7CF8',sns:[]},
+    {id:3,name:'Client 3',color:'#22D3A0',sns:[]},
+  ],
+  nextClientId:4,
+  selected:null,activeClient:null,filterStatus:'all',search:'',tab:'monitor',
+  showAdd:false,addSN:'',addNote:'',addClient:'1',addLoading:false,addError:'',
+  rowLoading:{},
+  showClientMgr:false,
+  editClientColors:{},
+  aiQuery:'',aiResponse:'',aiLoading:false,
+};
+
+// ── HELPERS ──────────────────────────────────────────────────────────────────
+const fmt=d=>d?new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'&mdash;';
+const fmtShort=d=>d?new Date(d).toLocaleDateString('en-US',{month:'short',year:'numeric'}):'&mdash;';
+const daysUntil=d=>d?Math.ceil((new Date(d)-Date.now())/86400000):null;
+const clientOf=sn=>S.clients.find(c=>c.sns.includes(sn));
+const esc=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+function getStatusCfg(xmlDoc){
+  const codeEl=xmlDoc.querySelector('CaseStatusCode,StatusCode');
+  if(codeEl){const c=codeEl.textContent.trim();if(STATUS_MAP[c])return STATUS_MAP[c];}
+  const descEl=xmlDoc.querySelector('CaseStatusDescriptionText,StatusDescriptionText');
+  if(descEl){
+    const d=descEl.textContent.toLowerCase();
+    if(d.includes('regist'))return STATUS_MAP['710'];
+    if(d.includes('abandon'))return STATUS_MAP['720'];
+    if(d.includes('publish'))return STATUS_MAP['680'];
+    if(d.includes('office action'))return STATUS_MAP['660'];
+    if(d.includes('cancel'))return STATUS_MAP['730'];
+    if(d.includes('pending')||d.includes('filed'))return STATUS_MAP['640'];
+    return{...DEF_CFG,label:descEl.textContent.trim().substring(0,35)};
+  }
+  return DEF_CFG;
+}
+
+function getText(node,...tags){
+  for(const t of tags){const el=node.querySelector(t);if(el&&el.textContent.trim())return el.textContent.trim();}
+  return null;
+}
+
+function parseXML(xmlStr,sn){
+  const doc=new DOMParser().parseFromString(xmlStr,'application/xml');
+  const cfg=getStatusCfg(doc);
+  const mark=(getText(doc,'MarkVerbalElementText','WordMarkText','MarkText','TrademarkText')||'UNKNOWN').toUpperCase();
+  const owner=getText(doc,'PartyName','NationalOwnerName','OwnerName','EntityName','ApplicantName')||'';
+  const attorney=getText(doc,'AttorneyName','PractitionerName','PractitionerFirmName')||'';
+  const filing=getText(doc,'FilingDate','ApplicationFilingDate','NationalApplicationDate');
+  const registration=getText(doc,'RegistrationDate','NationalRegistrationDate');
+  let renewal=getText(doc,'RenewalDate','ExpirationDate','MaintenanceDate');
+  if(!renewal&&registration){const d=new Date(registration);d.setFullYear(d.getFullYear()+10);renewal=d.toISOString().split('T')[0];}
+  const gs=getText(doc,'GoodsServicesDescription','GoodsServiceDescription','ClassificationDescription')||'';
+  const clsRaw=getText(doc,'InternationalClassNumber','NiceClassificationNumber','ClassNumber');
+  const cls=clsRaw?'IC '+clsRaw.padStart(3,'0'):'';
+  const hist=[];
+  doc.querySelectorAll('ProsecutionHistoryEntry,HistoryEntry,CaseEvent').forEach(n=>{
+    const d=getText(n,'EventDate','HistoryDate','ActionDate','ProsecutionHistoryDate');
+    const e=getText(n,'EventDescriptionText','HistoryText','ActionDescription','ProsecutionHistoryDescriptionText');
+    if(d&&e)hist.push({d,e});
+  });
+  if(!hist.length&&filing)hist.push({d:filing,e:'New Application Filed'});
+  return{sn,mark,owner,attorney,statusCode:cfg.code,statusLabel:cfg.label,cfg,filing,registration,renewal,gs,cls,history:hist.slice(0,20),lastFetched:new Date().toISOString(),dateAdded:new Date().toISOString()};
+}
+
+async function fetchTSDR(sn){
+  const directUrl=`${TSDR_BASE}/casestatus/sn${sn}/info.xml?apiKey=${S.apiKey}`;
+  const proxies=[
+    `https://corsproxy.io/?url=${encodeURIComponent(directUrl)}`,
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(directUrl)}`,
+    `https://cors-anywhere.herokuapp.com/${directUrl}`,
+  ];
+  const urls=[directUrl,...proxies];
+  let lastErr='Could not reach USPTO. Check connection and try again.';
+  for(const url of urls){
+    try{
+      const controller=new AbortController();
+      const timer=setTimeout(()=>controller.abort(),8000);
+      const res=await fetch(url,{signal:controller.signal});
+      clearTimeout(timer);
+      const xml=await res.text();
+      // Check for auth errors in XML body
+      if(xml.includes('401')||xml.includes('403')||(xml.toLowerCase().includes('unauthorized')))
+        {lastErr='USPTO API key issue. Check key is active.';continue;}
+      if(xml.includes('<ErrorCode>')||xml.includes('<faultstring>'))
+        throw new Error('Serial number not found');
+      if(res.status===404)throw new Error('Serial number not found');
+      if(!res.ok||!xml.includes('<')){lastErr='Bad response ('+res.status+')';continue;}
+      // Success — parse it
+      return parseXML(xml,sn);
+    }catch(e){
+      if(e.message==='Serial number not found')throw e;
+      if(e.name==='AbortError'){lastErr='Request timed out';continue;}
+      lastErr=e.message||lastErr;
+    }
+  }
+  throw new Error(lastErr);
+}
+
+async function testKey(key){
+  // Skip verification — just trust the key, errors will show when fetching
+  return true;
+}
+
+function checkChanges(sn,tm){
+  const prev=S.statusSnapshot[sn];
+  const curr=tm.statusCode;
+  if(prev&&prev!==curr)S.changes.push({sn,mark:tm.mark,oldLabel:prev,newLabel:tm.statusLabel,time:new Date().toLocaleTimeString()});
+  S.statusSnapshot[sn]=curr;
+}
+
+function stats(){
+  const a=Object.values(S.trademarks);
+  return{
+    total:a.length,
+    registered:a.filter(t=>t.statusCode==='registered').length,
+    needsAction:a.filter(t=>['action','published'].includes(t.statusCode)).length,
+    renewingSoon:a.filter(t=>{const d=daysUntil(t.renewal);return d!==null&&d<365;}).length,
+    abandoned:a.filter(t=>t.statusCode==='abandoned'||t.statusCode==='cancelled').length,
+  };
+}
+
+// ── RENDER ────────────────────────────────────────────────────────────────────
+function render(){document.getElementById('app').innerHTML=buildApp();}
+
+function buildApp(){
+  if(S.showKeyScreen)return buildKeyScreen();
+  let modals='';
+  if(S.showAdd)modals+=buildAddModal();
+  if(S.showClientMgr)modals+=buildClientMgr();
+  return `<div id="wr" style="display:flex;flex-direction:column;height:100vh">
+    ${buildHeader()}
+    <div class="body-wrap">
+      ${buildBanner()}
+      <div class="main">${buildSidebar()}<div class="content">${S.tab==='ai'?buildAI():buildMonitor()}</div></div>
+    </div>
+    ${modals}
+  </div>`;
+}
+
+function buildKeyScreen(){
+  return `<div style="height:100vh;display:flex;flex-direction:column">
+    <div class="header"><div class="logo"><div class="logo-icon">&#9878;</div><div class="logo-text">Trademark<span>Monitor</span></div></div></div>
+    <div class="key-screen fade-up">
+      <div style="font-size:48px;margin-bottom:20px">&#128273;</div>
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:24px;margin-bottom:10px">Enter Your USPTO API Key</div>
+      <div style="font-size:14px;color:var(--sub);margin-bottom:30px;max-width:420px;line-height:1.6">Your key is used only for this browser session and is never stored. All requests go directly from your browser to USPTO's TSDR servers.</div>
+      <div class="key-form">
+        <div class="form-group">
+          <label class="form-label">TSDR API Key</label>
+          <div class="key-input-wrap">
+            <input id="key-input" class="form-input" type="${S.keyVisible?'text':'password'}" placeholder="Paste your ~40 character API key here" value="${esc(S.apiKey)}"/>
+            <button class="key-toggle" onclick="toggleKV()">${S.keyVisible?'&#128584;':'&#128065;'}</button>
+          </div>
+        </div>
+        <div id="key-err" style="display:none" class="error-msg"></div>
+        <button class="btn btn-primary" id="key-btn" onclick="connectAPI()" style="width:100%;justify-content:center;padding:10px">Connect to USPTO TSDR</button>
+        <div class="key-features">
+          ${[['&#10003;','Live status from USPTO'],['&#10003;','Prosecution history'],['&#10003;','Status change alerts'],['&#10003;','Per-trademark notes'],['&#10003;','Client management'],['&#10003;','AI portfolio assistant']].map(([i,t])=>`<div class="key-feature"><span style="color:var(--success)">${i}</span>${t}</div>`).join('')}
+        </div>
+        <div class="hint" style="margin-top:16px"><strong style="color:var(--text)">Don't have a key?</strong><br/>Go to <a href="https://my.uspto.gov" target="_blank" style="color:var(--accent)">my.uspto.gov</a> &rarr; sign in &rarr; <strong>API Key Manager</strong> &rarr; Request a key.</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function buildHeader(){
+  return `<div class="header">
+    <div class="logo">
+      <div class="logo-icon">&#9878;</div>
+      <div class="logo-text">Trademark<span>Monitor</span></div>
+      <div style="width:1px;height:18px;background:var(--border);margin:0 8px"></div>
+      <div class="live-badge"><div class="live-dot pulse"></div>USPTO TSDR Live</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <div style="display:flex;align-items:center;gap:6px;font-family:'DM Mono',monospace;font-size:10px;color:var(--success);padding:4px 10px;border:1px solid rgba(34,211,160,.3);border-radius:20px">&#128273; API Connected</div>
+      
+      <button class="btn btn-ghost" style="font-size:11px" onclick="openClientMgr()">&#9881; Clients</button>
+      <button class="btn btn-primary" style="font-size:11px" onclick="openAdd()">+ Add Trademark</button>
+    </div>
+  </div>`;
+}
+
+function buildBanner(){
+  if(!S.changes.length)return'<div class="alert-banner"></div>';
+  const items=S.changes.map(c=>`&bull; <strong style="color:var(--text)">${esc(c.mark)}</strong> (SN&nbsp;${c.sn}) &mdash; ${c.oldLabel} &rarr; <strong style="color:var(--warn)">${c.newLabel}</strong> <span style="opacity:.6">${c.time}</span>`).join('<br/>');
+  return `<div class="alert-banner visible">
+    <div style="font-size:18px;flex-shrink:0">&#9888;</div>
+    <div style="flex:1"><div class="alert-title">Status Change${S.changes.length>1?'s':''} Detected (${S.changes.length})</div><div class="alert-items">${items}</div></div>
+    <button class="alert-close" onclick="clearChg()">&#10005;</button>
+  </div>`;
+}
+
+function buildSidebar(){
+  const s=stats();
+  return `<div class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Navigation</div>
+      <button class="nav-item ${S.tab==='monitor'?'active':''}" onclick="setTab('monitor')"><span style="font-size:13px;width:16px;text-align:center">&#9647;</span>Monitor<span class="nav-count">${s.total}</span></button>
+      <button class="nav-item ${S.tab==='ai'?'active':''}" onclick="setTab('ai')"><span style="font-size:13px;width:16px;text-align:center">&#9670;</span>AI Assistant</button>
+    </div>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Clients <button class="sidebar-label-btn" onclick="openClientMgr()" title="Manage clients">&#9881;</button></div>
+      <button class="nav-item ${!S.activeClient?'active':''}" onclick="setClient(null)">
+        <span class="client-dot" style="background:var(--muted)"></span>All Clients<span class="nav-count">${s.total}</span>
+      </button>
+      ${S.clients.map(c=>{
+        const cnt=c.sns.filter(sn=>S.trademarks[sn]).length;
+        return `<button class="nav-item ${S.activeClient===c.id?'active':''}" onclick="setClient(${c.id})">
+          <span class="client-dot" style="background:${c.color}"></span>
+          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${esc(c.name)}</span>
+          <span class="nav-count">${cnt}</span>
+        </button>`;
+      }).join('')}
+    </div>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Status Filter</div>
+      ${[['all','All','var(--muted)'],['registered','Registered','#22D3A0'],['action','Office Action','#F97B3D'],['published','Published','#F5A623'],['pending','Pending','#4F8EF7'],['abandoned','Abandoned','#F05D6E']].map(([v,l,c])=>`
+        <button class="nav-item ${S.filterStatus===v?'active':''}" onclick="setFilter('${v}')">
+          <span style="width:6px;height:6px;border-radius:50%;background:${c};flex-shrink:0"></span>${l}
+        </button>`).join('')}
+    </div>
+  </div>`;
+}
+
+function buildMonitor(){
+  const s=stats();
+  const all=Object.values(S.trademarks);
+  const cm={};S.clients.forEach(c=>c.sns.forEach(sn=>{cm[sn]=c;}));
+  const filtered=all.filter(tm=>{
+    if(S.activeClient&&!S.clients.find(c=>c.id===S.activeClient)?.sns.includes(tm.sn))return false;
+    if(S.filterStatus!=='all'&&tm.statusCode!==S.filterStatus)return false;
+    const q=S.search.toLowerCase();
+    if(q&&!tm.mark.toLowerCase().includes(q)&&!tm.sn.includes(q)&&!(tm.owner||'').toLowerCase().includes(q))return false;
+    return true;
+  });
+  const pc={'all':'var(--accent)','registered':'#22D3A0','action':'#F97B3D','published':'#F5A623','pending':'#4F8EF7','abandoned':'#F05D6E'};
+  return `
+  <div class="stats-row">
+    ${[{label:'Total Marks',val:s.total,sub:`${S.clients.length} clients`,c:'#4F8EF7'},{label:'Registered',val:s.registered,sub:'Active &amp; protected',c:'#22D3A0'},{label:'Needs Action',val:s.needsAction,sub:'Actions &amp; oppositions',c:'#F97B3D'},{label:'Renewing Soon',val:s.renewingSoon,sub:'Within 12 months',c:'#F5A623'},{label:'Abandoned',val:s.abandoned,sub:'Requires review',c:'#F05D6E'}].map(card=>`
+      <div class="stat-card" style="--accent-line:${card.c}">
+        <div class="stat-label">${card.label}</div>
+        <div class="stat-value" style="color:${card.c}">${card.val}</div>
+        <div class="stat-sub">${card.sub}</div>
+      </div>`).join('')}
+  </div>
+  <div class="filters">
+    <div class="search-wrap">
+      <span class="search-icon">&#8981;</span>
+      <input id="si" placeholder="Search marks, serials, owners&hellip;" value="${esc(S.search)}" oninput="updSearch(this.value)"/>
+    </div>
+    <div class="filter-pills">
+      ${['all','registered','pending','action','published','abandoned'].map(v=>`<button class="pill ${S.filterStatus===v?'active':''}" style="${S.filterStatus===v?`background:${pc[v]}`:''}" onclick="setFilter('${v}')">${v==='all'?'All':v.charAt(0).toUpperCase()+v.slice(1)}</button>`).join('')}
+    </div>
+    <button class="btn btn-ghost" style="margin-left:auto;font-size:11px" onclick="refreshAll()">&#8635; Refresh All</button>
+  </div>
+  <div style="display:flex;gap:16px">
+    <div style="flex:1;min-width:0">
+      <div class="table-header"><span>Mark / Serial</span><span>Owner</span><span>Status</span><span>Renewal</span><span>Filed</span><span title="Has notes">&#128221;</span></div>
+      ${filtered.length===0&&all.length===0?buildEmpty():filtered.length===0?`<div class="empty-state"><div style="font-size:28px;opacity:.4">&#8856;</div><div style="font-size:13px">No trademarks match filters</div></div>`:filtered.map(tm=>buildRow(tm,cm[tm.sn])).join('')}
+    </div>
+    ${S.selected?buildDetail(S.selected):''}
+  </div>`;
+}
+
+function buildEmpty(){
+  return `<div class="empty-state" style="padding:80px 20px">
+    <div style="font-size:32px;opacity:.4">&#9878;</div>
+    <div style="font-size:16px;font-family:'Syne',sans-serif;font-weight:700;color:var(--text);margin-bottom:8px">No Trademarks Yet</div>
+    <div style="font-size:13px;color:var(--sub);margin-bottom:20px;text-align:center;max-width:340px;line-height:1.6">Add trademarks using the button above. Enter a USPTO serial number and live data is fetched directly from TSDR. You can also add private notes to each trademark.</div>
+    <button class="btn btn-primary" onclick="openAdd()">+ Add First Trademark</button>
+  </div>`;
+}
+
+function buildRow(tm,client){
+  const cfg=tm.cfg||DEF_CFG;
+  const days=daysUntil(tm.renewal);
+  const urgent=days!==null&&days<365;
+  const color=client?.color||'var(--muted)';
+  const sel=S.selected?.sn===tm.sn;
+  const changed=S.changes.some(c=>c.sn===tm.sn);
+  const hasNote=!!(S.notes[tm.sn]&&S.notes[tm.sn].trim());
+  const isLoading=S.rowLoading[tm.sn];
+  let renewStr='&mdash;';
+  if(tm.renewal)renewStr=urgent?`&#9888;&nbsp;${days}d`:fmtShort(tm.renewal);
+  return `<div class="tm-row ${sel?'selected':''} ${changed?'changed':''}" style="--row-color:${color}" onclick="selTM('${tm.sn}')">
+    <div><div class="mark-name">${isLoading?'<span class="spinner" style="vertical-align:middle;margin-right:4px"></span>':''}${esc(tm.mark)}</div><div class="mark-sn">SN&nbsp;${tm.sn}</div></div>
+    <div class="owner-name" title="${esc(tm.owner)}">${esc(tm.owner)||'&mdash;'}</div>
+    <div><span class="badge" style="color:${cfg.color};background:${cfg.bg};border:1px solid ${cfg.border}">${cfg.icon} ${cfg.label}</span></div>
+    <div class="renewal ${urgent?'urgent':'ok'}">${renewStr}</div>
+    <div style="font-size:10px;color:var(--faint);font-family:'DM Mono',monospace">${fmt(tm.filing)}</div>
+    <div style="display:flex;align-items:center;justify-content:center">${hasNote?'<div class="note-dot" title="Has notes"></div>':''}</div>
+  </div>`;
+}
+
+function buildDetail(tm){
+  const cfg=tm.cfg||DEF_CFG;
+  const client=clientOf(tm.sn);
+  const days=daysUntil(tm.renewal);
+  const urgent=days!==null&&days<365;
+  const note=S.notes[tm.sn]||'';
+  return `<div class="detail-panel">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
+      <div><div class="detail-mark">${esc(tm.mark)}</div><div class="detail-sn">Serial No. ${tm.sn}</div></div>
+      <button class="detail-close" onclick="closeDetail()">&#10005;</button>
+    </div>
+    ${client?`<div style="display:flex;align-items:center;gap:6px;margin:8px 0 4px"><span style="width:7px;height:7px;border-radius:50%;background:${client.color};display:inline-block"></span><span style="font-size:11px;color:var(--sub)">${esc(client.name)}</span></div>`:''}
+    <div style="margin:12px 0"><span class="badge" style="color:${cfg.color};background:${cfg.bg};border:1px solid ${cfg.border};padding:5px 12px;font-size:11px">${cfg.icon} ${cfg.label}</span></div>
+
+    <div class="info-grid">
+      ${[['Class',tm.cls||'&mdash;'],['Filed',fmt(tm.filing)],['Registered',fmt(tm.registration)],['Renewal',urgent?`<span style="color:var(--warn)">&#9888; ${days} days</span>`:fmt(tm.renewal)],['Attorney',esc(tm.attorney)||'&mdash;'],['Added',tm.dateAdded?new Date(tm.dateAdded).toLocaleDateString():'&mdash;']].map(([k,v])=>`<div class="info-cell"><div class="info-key">${k}</div><div class="info-val">${v}</div></div>`).join('')}
+    </div>
+
+    <div style="margin-bottom:14px">
+      <div class="section-label">Goods &amp; Services</div>
+      <div class="gs-box">${esc(tm.gs)||'&mdash;'}</div>
+    </div>
+
+    <div style="margin-bottom:14px">
+      <div class="section-label">
+        <span>&#128221; Private Notes</span>
+        <span id="notes-saved-${tm.sn}" style="font-size:10px;color:var(--success);display:none">&#10003; Saved</span>
+      </div>
+      <textarea class="notes-area" id="notes-${tm.sn}" placeholder="Add your private notes, updates, action items, deadlines&hellip;" oninput="saveNote('${tm.sn}',this.value)">${esc(note)}</textarea>
+    </div>
+
+    ${tm.history.length?`<div style="margin-bottom:14px"><div class="section-label">Prosecution History</div>${tm.history.map((h,i)=>`<div class="tl-item"><div class="tl-line"><div class="tl-dot" style="background:${i===0?cfg.color:'var(--border2)'}"></div>${i<tm.history.length-1?'<div class="tl-connector"></div>':''}</div><div style="padding-bottom:${i<tm.history.length-1?'6':'0'}px"><div class="tl-event">${esc(h.e)}</div><div class="tl-date">${fmt(h.d)}</div></div></div>`).join('')}</div>`:''}
+
+    <div class="detail-actions">
+      <a href="https://tsdr.uspto.gov/#caseNumber=${tm.sn}&caseSearchType=US_APPLICATION&caseType=DEFAULT&searchType=statusSearch" target="_blank" class="btn btn-primary" style="font-size:11px">&#128279; TSDR</a>
+      <button class="btn btn-ghost" style="font-size:11px" onclick="refreshOne('${tm.sn}')">&#8635; Refresh</button>
+      <button class="btn btn-ghost" style="font-size:11px" onclick="navigator.clipboard?.writeText('${tm.sn}')">&#128203; SN</button>
+      <button class="btn btn-danger" style="font-size:11px;margin-left:auto" onclick="removeTM('${tm.sn}')">&#128465;</button>
+    </div>
+    <div style="margin-top:10px;font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)">Fetched: ${tm.lastFetched?new Date(tm.lastFetched).toLocaleString():'never'}</div>
+  </div>`;
+}
+
+function buildAddModal(){
+  return `<div class="modal-backdrop" onclick="if(event.target===this)closeAdd()">
+    <div class="modal">
+      <h2>Add Trademark</h2>
+      <div class="modal-sub">Enter a USPTO serial number to fetch live data from TSDR. Add an optional note right away.</div>
+      <div class="form-group"><label class="form-label">USPTO Serial Number</label><input class="form-input" id="msn" placeholder="e.g. 90123456" value="${esc(S.addSN)}" oninput="S.addSN=this.value" onkeydown="if(event.key==='Enter')doAdd()"/></div>
+      <div class="form-group"><label class="form-label">Assign to Client</label><select class="form-select" onchange="S.addClient=this.value">${S.clients.map(c=>`<option value="${c.id}" ${S.addClient==c.id?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div>
+      <div class="form-group"><label class="form-label">Initial Note (optional)</label><textarea class="notes-area" id="mnote" placeholder="e.g. Office action response due, waiting on specimen approval&hellip;" style="min-height:60px" oninput="S.addNote=this.value">${esc(S.addNote)}</textarea></div>
+      ${S.addError?`<div class="error-msg">${S.addError}</div>`:''}
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeAdd()">Cancel</button>
+        <button class="btn btn-primary" onclick="doAdd()" ${S.addLoading?'disabled':''} style="min-width:130px">${S.addLoading?'<div class="spinner"></div>&nbsp;Fetching&hellip;':'Fetch from TSDR'}</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function buildClientMgr(){
+  return `<div class="modal-backdrop" onclick="if(event.target===this)closeClientMgr()">
+    <div class="modal">
+      <h2>Manage Clients</h2>
+      <div class="modal-sub">Rename clients, change their colors, add new ones, or remove empty ones. Click a name to edit it inline.</div>
+      <div id="client-list">
+        ${S.clients.map(c=>{
+          const cnt=c.sns.filter(sn=>S.trademarks[sn]).length;
+          return `<div class="client-row">
+            <div class="client-color-swatch" style="background:${c.color}" onclick="pickColor(${c.id})" title="Change color"></div>
+            <input class="client-name-input" value="${esc(c.name)}" onchange="renameClient(${c.id},this.value)" placeholder="Client name"/>
+            <span class="client-tm-count">${cnt} mark${cnt!==1?'s':''}</span>
+            ${cnt===0?`<button class="btn btn-danger" style="font-size:11px;padding:4px 8px" onclick="removeClient(${c.id})">&#10005;</button>`:'<div style="width:52px"></div>'}
+          </div>
+          <div id="color-picker-${c.id}" style="display:none;padding:4px 12px 12px">
+            <div class="color-swatches">${CLIENT_COLORS.map(col=>`<div class="color-swatch ${c.color===col?'selected':''}" style="background:${col}" onclick="setClientColor(${c.id},'${col}')"></div>`).join('')}</div>
+          </div>`;
+        }).join('')}
+      </div>
+      <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-top:8px" onclick="addClient()">+ Add Client</button>
+      <div class="modal-actions"><button class="btn btn-primary" onclick="closeClientMgr()">Done</button></div>
+    </div>
+  </div>`;
+}
+
+function buildAI(){
+  const all=Object.values(S.trademarks);
+  return `<div class="ai-panel">
+    <div class="ai-title">AI Portfolio Assistant</div>
+    <div class="ai-sub">Ask natural language questions about your trademark portfolio &mdash; powered by Claude AI</div>
+    <div class="ai-box">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
+        <div style="width:8px;height:8px;border-radius:50%;background:var(--accent)" class="pulse"></div>
+        <span style="font-family:'Syne',sans-serif;font-weight:700;font-size:14px">Claude AI</span>
+        <span style="font-size:11px;color:var(--sub);font-family:'DM Mono',monospace">${all.length} trademarks loaded</span>
+      </div>
+      <div class="ai-input-row">
+        <input id="ai-in" class="ai-input" placeholder="e.g. 'Which marks need attention this year?'" value="${esc(S.aiQuery)}" onkeydown="if(event.key==='Enter')askAI()"/>
+        <button class="btn btn-primary" onclick="askAI()" ${S.aiLoading||!all.length?'disabled':''} style="white-space:nowrap;min-width:80px">${S.aiLoading?'<div class="spinner"></div>':'Ask AI'}</button>
+      </div>
+      ${S.aiLoading?'<div style="display:flex;align-items:center;gap:8px;color:var(--sub);font-size:12px;padding:10px 0"><div class="spinner"></div>Analyzing&hellip;</div>':''}
+      ${S.aiResponse&&!S.aiLoading?`<div class="ai-response">${esc(S.aiResponse)}</div>`:''}
+      ${!S.aiResponse&&!S.aiLoading?`<div class="ai-chips">${['Which marks renew within a year?','Are there office actions pending?','Summarize my portfolio status','Which trademarks are at risk?','Show marks with notes'].map(s=>`<button class="ai-chip" onclick="setAIQ('${s}')">${s}</button>`).join('')}</div>`:''}
+      ${!all.length?'<div style="font-size:12px;color:var(--muted);padding-top:8px">Add trademarks to use the AI assistant.</div>':''}
+    </div>
+  </div>`;
+}
+
+// ── EVENT HANDLERS ────────────────────────────────────────────────────────────
+window.toggleKV=()=>{S.keyVisible=!S.keyVisible;render();};
+window.disconnectAPI=()=>{render();};  // key is hardcoded
+window.setTab=t=>{S.tab=t;S.selected=null;render();};
+window.setClient=id=>{S.activeClient=id;S.selected=null;render();};
+window.setFilter=v=>{S.filterStatus=v;S.selected=null;render();};
+window.updSearch=v=>{S.search=v;render();};
+window.selTM=sn=>{S.selected=S.trademarks[sn];render();};
+window.closeDetail=()=>{S.selected=null;render();};
+window.openAdd=()=>{S.showAdd=true;S.addError='';S.addNote='';render();};
+window.closeAdd=()=>{S.showAdd=false;S.addSN='';S.addNote='';render();};
+window.clearChg=()=>{S.changes=[];render();};
+window.setAIQ=q=>{S.aiQuery=q;render();setTimeout(()=>{const e=document.getElementById('ai-in');if(e)e.value=q;},50);};
+window.openClientMgr=()=>{S.showClientMgr=true;render();};
+window.closeClientMgr=()=>{S.showClientMgr=false;render();};
+
+window.saveNote=(sn,val)=>{
+  S.notes[sn]=val;
+  if(S.selected&&S.selected.sn===sn){
+    const saved=document.getElementById(`notes-saved-${sn}`);
+    if(saved){saved.style.display='inline';setTimeout(()=>{if(saved)saved.style.display='none';},2000);}
+  }
+};
+
+window.removeTM=sn=>{
+  if(!confirm(`Remove ${S.trademarks[sn]?.mark||sn} from your portfolio?`))return;
+  delete S.trademarks[sn];
+  delete S.notes[sn];
+  delete S.statusSnapshot[sn];
+  S.clients.forEach(c=>{c.sns=c.sns.filter(s=>s!==sn);});
+  S.selected=null;
+  render();
+};
+
+window.renameClient=(id,name)=>{
+  const c=S.clients.find(x=>x.id===id);
+  if(c)c.name=name;
+};
+
+window.addClient=()=>{
+  const usedColors=S.clients.map(c=>c.color);
+  const color=CLIENT_COLORS.find(c=>!usedColors.includes(c))||CLIENT_COLORS[S.clients.length%CLIENT_COLORS.length];
+  S.clients.push({id:S.nextClientId++,name:`Client ${S.clients.length+1}`,color,sns:[]});
+  render();
+  setTimeout(()=>{
+    const inputs=document.querySelectorAll('.client-name-input');
+    if(inputs.length)inputs[inputs.length-1].focus();
+  },50);
+};
+
+window.removeClient=id=>{
+  S.clients=S.clients.filter(c=>c.id!==id);
+  if(S.activeClient===id)S.activeClient=null;
+  render();
+};
+
+window.pickColor=id=>{
+  const picker=document.getElementById(`color-picker-${id}`);
+  if(picker)picker.style.display=picker.style.display==='none'?'block':'none';
+};
+
+window.setClientColor=(id,color)=>{
+  const c=S.clients.find(x=>x.id===id);
+  if(c)c.color=color;
+  render();
+};
+
+window.connectAPI=async()=>{
+  const inp=document.getElementById('key-input');
+  const key=(inp?.value||'').trim();
+  if(!key){showKErr('Please paste your API key.');return;}
+  if(key.length<10){showKErr('That key looks too short. Please check and paste it again.');return;}
+  // Skip online verification (USPTO API blocks browser requests via CORS)
+  // The key will be validated when you first fetch a trademark
+  S.apiKey=key;
+  S.apiConnected=true;
+  S.showKeyScreen=false;
+  render();
+};
+function showKErr(m){const e=document.getElementById('key-err');if(e){e.style.display='block';e.textContent=m;}}
+
+window.doAdd=async()=>{
+  const snEl=document.getElementById('msn');
+  const noteEl=document.getElementById('mnote');
+  const sn=((snEl?.value||S.addSN)).trim().replace(/\D/g,'');
+  const note=(noteEl?.value||S.addNote).trim();
+  if(!sn){S.addError='Please enter a serial number.';render();return;}
+  if(S.trademarks[sn]){S.addError='Already in your portfolio.';render();return;}
+  S.addSN=sn;S.addError='';S.addLoading=true;render();
+  try{
+    const tm=await fetchTSDR(sn);
+    S.trademarks[sn]=tm;
+    S.statusSnapshot[sn]=tm.statusCode;
+    if(note)S.notes[sn]=note;
+    const cid=parseInt(S.addClient);
+    const c=S.clients.find(x=>x.id===cid);
+    if(c&&!c.sns.includes(sn))c.sns.push(sn);
+    S.showAdd=false;S.addSN='';S.addNote='';S.addLoading=false;S.selected=tm;render();
+  }catch(e){
+    S.addError='USPTO error: '+e.message;S.addLoading=false;render();
+  }
+};
+
+window.refreshOne=async(sn)=>{
+  S.rowLoading[sn]=true;render();
+  try{const tm=await fetchTSDR(sn);checkChanges(sn,tm);S.trademarks[sn]=tm;if(S.selected?.sn===sn)S.selected=tm;}
+  catch(e){console.error('Refresh failed',sn,e);}
+  S.rowLoading[sn]=false;render();
+};
+
+window.refreshAll=async()=>{
+  const sns=Object.keys(S.trademarks);
+  if(!sns.length)return;
+  sns.forEach(sn=>{S.rowLoading[sn]=true;});render();
+  for(const sn of sns){
+    try{const tm=await fetchTSDR(sn);checkChanges(sn,tm);S.trademarks[sn]=tm;if(S.selected?.sn===sn)S.selected=tm;}
+    catch(e){console.error('Refresh failed',sn,e);}
+    S.rowLoading[sn]=false;
+  }
+  render();
+};
+
+window.askAI=async()=>{
+  const inp=document.getElementById('ai-in');
+  const q=(inp?.value||S.aiQuery).trim();
+  if(!q)return;
+  S.aiQuery=q;S.aiLoading=true;S.aiResponse='';render();
+  const portfolio=JSON.stringify(Object.values(S.trademarks).map(t=>({
+    mark:t.mark,sn:t.sn,owner:t.owner,status:t.statusLabel,
+    statusCode:t.statusCode,renewal:t.renewal,filing:t.filing,
+    gs:t.gs,cls:t.cls,note:S.notes[t.sn]||''
+  })));
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:`You are an expert USPTO trademark monitoring assistant. Be concise, actionable, flag risks and deadlines. Notes are private annotations by the user. Portfolio: ${portfolio}`,messages:[{role:'user',content:q}]})});
+    const data=await res.json();
+    S.aiResponse=data.content?.[0]?.text||'No response.';
+  }catch(e){S.aiResponse='Could not reach AI. Check your connection.';}
+  S.aiLoading=false;render();
+};
+
+render();
+</script>
+</body>
+</html>
